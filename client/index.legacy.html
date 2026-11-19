@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GameVault - Gaming Hub & Collection Manager</title>
+  <link rel="stylesheet" href="bootstrap.css">
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"
+  >
+  <link rel="stylesheet" href="style.css?v=5">
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js" defer></script>
+  <script src="app.js?v=3" defer></script>
+</head>
+
+<body>
+  <div id="app" class="app-layout" v-cloak>
+    
+    <aside class="app-sidebar" aria-label="Main Navigation">
+      <div class="sidebar-header">
+        <button
+          type="button"
+          class="brand-badge"
+          @click="setView('games')"
+        >
+          <div class="brand-icon">
+            <i class="fa fa-gamepad" aria-hidden="true"></i>
+          </div>
+          <div class="brand-info">
+            <span class="brand-title">GameVault</span>
+            <span class="brand-sub">Gaming Hub</span>
+          </div>
+        </button>
+      </div>
+
+      <div class="sidebar-body">
+        <div class="nav-group">
+          <div class="group-title">Collections</div>
+          <nav class="nav-menu">
+            <button
+              type="button"
+              class="nav-item"
+              :class="{ active: currentView === 'games' }"
+              @click="setView('games')"
+            >
+              <i class="fa fa-th-large nav-icon" aria-hidden="true"></i>
+              <span class="nav-text">Library</span>
+              <span class="nav-pill">{{ numberOfGames }}</span>
+            </button>
+
+            <button
+              type="button"
+              class="nav-item"
+              :class="{ active: currentView === 'backlog' }"
+              @click="setView('backlog')"
+            >
+              <i class="fa fa-bookmark nav-icon" aria-hidden="true"></i>
+              <span class="nav-text">Backlog</span>
+              <span class="nav-pill pill-backlog">{{ numberOfBacklog }}</span>
+            </button>
+
+            <button
+              type="button"
+              class="nav-item"
+              :class="{ active: currentView === 'favorites' }"
+              @click="setView('favorites')"
+            >
+              <i class="fa fa-heart nav-icon" aria-hidden="true"></i>
+              <span class="nav-text">Favorites</span>
+              <span class="nav-pill pill-favorites">{{ numberOfFavorites }}</span>
+            </button>
+          </nav>
+
+          <div class="sidebar-action-wrap">
+            <button
+              type="button"
+              class="sidebar-add-game-btn"
+              @click="openAddGameModal()"
+            >
+              <i class="fa fa-plus-circle" aria-hidden="true"></i>
+              <span>Add New Game</span>
+            </button>
+          </div>
+        </div>
+
+        <div v-if="currentView === 'games'" class="nav-group">
+          <div class="group-title">Browse by Genre</div>
+          <div class="sidebar-genres">
+            <button
+              v-for="genre in genres"
+              :key="genre"
+              type="button"
+              class="sidebar-genre-chip"
+              :class="{ active: selectedGenre === genre }"
+              @click="setGenre(genre)"
+            >
+              <span>{{ genre }}</span>
+              <i v-if="selectedGenre === genre" class="fa fa-check-circle" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="user-progress-widget">
+          <div class="progress-title">
+            <i class="fa fa-pie-chart" aria-hidden="true"></i>
+            <span>Queue Overview</span>
+          </div>
+          <div class="progress-item">
+            <span>Completed Titles</span>
+            <strong>{{ completedBacklogCount }} / {{ numberOfBacklog }}</strong>
+          </div>
+          <div class="progress-item">
+            <span>Hall of Fame</span>
+            <strong>{{ numberOfFavorites }} games</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <button
+          type="button"
+          class="theme-switch-row"
+          :title="isLightMode ? 'Switch to Dark Theme' : 'Switch to Light Theme'"
+          @click="toggleTheme()"
+        >
+          <div class="theme-switch-label">
+            <i class="fa" :class="isLightMode ? 'fa-moon-o' : 'fa-sun-o'" aria-hidden="true"></i>
+            <span>{{ isLightMode ? 'Dark Theme' : 'Light Theme' }}</span>
+          </div>
+          <div class="theme-switch-indicator" :class="{ 'is-light': isLightMode }"></div>
+        </button>
+
+        <div class="sidebar-copyright">
+          &copy; {{ currentYear }} GameVault • Vue 3
+        </div>
+      </div>
+    </aside>
+
+    <div class="app-main">
+      
+      <header class="workspace-topbar">
+        <div class="topbar-search">
+          <i class="fa fa-search search-icon" aria-hidden="true"></i>
+          <input
+            type="text"
+            v-model.trim="searchQuery"
+            placeholder="Search by title, genre, or platform..."
+            class="search-input-field"
+          >
+          <button
+            v-if="searchQuery"
+            type="button"
+            class="search-clear-btn"
+            title="Clear search"
+            @click="searchQuery = ''"
+          >
+            <i class="fa fa-times" aria-hidden="true"></i>
+          </button>
+        </div>
+
+        <div class="topbar-actions">
+          <button
+            type="button"
+            class="topbar-add-game-btn"
+            @click="openAddGameModal()"
+            title="Add a new game to library"
+          >
+            <i class="fa fa-plus" aria-hidden="true"></i>
+            <span>Add Game</span>
+          </button>
+
+          <div class="sort-selector">
+            <label for="sortDropdown"><i class="fa fa-sort" aria-hidden="true"></i> Sort by:</label>
+            <select id="sortDropdown" v-model="sortBy" class="sort-select-box">
+              <option value="featured">Featured</option>
+              <option value="rating">Rating (High to Low)</option>
+              <option value="name">Title (A - Z)</option>
+            </select>
+          </div>
+        </div>
+      </header>
+
+      <main class="workspace-content">
+        
+        <transition name="notice">
+          <div
+            v-if="notice.message"
+            class="app-notice-toast"
+            :class="'toast-' + notice.type"
+            role="status"
+          >
+            <i
+              class="fa"
+              :class="notice.type === 'success' ? 'fa-check-circle' : 'fa-info-circle'"
+              aria-hidden="true"
+            ></i>
+            <span>{{ notice.message }}</span>
+          </div>
+        </transition>
+
+        <section class="view-hero-card">
+          <div class="hero-left">
+            <span class="hero-pill">{{ currentViewBadge }}</span>
+            <h1 class="hero-title">{{ currentViewTitle }}</h1>
+            <p class="hero-desc">{{ currentViewDescription }}</p>
+          </div>
+
+          <div class="metrics-ribbon">
+            <div class="metric-box">
+              <div class="metric-val">{{ numberOfGames }}</div>
+              <div class="metric-caption">Total Games</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-val">{{ numberOfBacklog }}</div>
+              <div class="metric-caption">In Backlog</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-val">{{ numberOfFavorites }}</div>
+              <div class="metric-caption">Favorited</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Loading State -->
+        <section v-if="isLoading" class="empty-state-box">
+          <div class="empty-state-icon">
+            <i class="fa fa-spinner fa-spin" aria-hidden="true"></i>
+          </div>
+          <h2>Connecting to Database...</h2>
+          <p>Fetching your games library from Neon PostgreSQL.</p>
+        </section>
+
+        <!-- Network Error State -->
+        <section v-else-if="networkError" class="empty-state-box">
+          <div class="empty-state-icon">
+            <i class="fa fa-exclamation-triangle" aria-hidden="true"></i>
+          </div>
+          <h2>Connection Error</h2>
+          <p>{{ networkError }}</p>
+          <button type="button" class="empty-cta-btn" @click="loadAllData()">
+            Retry Connection
+          </button>
+        </section>
+
+        <section v-else-if="displayedGames.length" class="games-stream-grid">
+          <article
+            v-for="game in displayedGames"
+            :key="game.id"
+            class="game-stream-card"
+            @click="openGameDetails(game)"
+            tabindex="0"
+            role="button"
+            :aria-label="'View details for ' + game.title"
+            @keydown.enter="openGameDetails(game)"
+          >
+            <div class="card-cover-wrap">
+              <img
+                :src="game.image"
+                :alt="game.title + ' cover'"
+                class="card-cover-img"
+                loading="lazy"
+              >
+              <div class="cover-overlay-tags">
+                <span class="cover-genre-tag">{{ game.genre }}</span>
+                <span class="cover-rating-tag">
+                  <i class="fa fa-star" aria-hidden="true"></i>
+                  {{ game.rating }}
+                </span>
+              </div>
+              <div class="card-click-hint">
+                <i class="fa fa-eye" aria-hidden="true"></i>
+                <span>Details</span>
+              </div>
+            </div>
+
+            <div class="card-info-wrap">
+              <h2 class="card-title">{{ game.title }}</h2>
+
+              <div class="card-details">
+                <span class="detail-item">
+                  <i class="fa fa-gamepad" aria-hidden="true"></i>
+                  {{ game.platform }}
+                </span>
+                <span class="detail-item">
+                  <i class="fa fa-calendar-o" aria-hidden="true"></i>
+                  {{ game.releasedate }}
+                </span>
+              </div>
+
+              <div
+                v-if="currentView === 'backlog'"
+                class="queue-status-chip"
+                :class="game.status === 'Completed' ? 'status-done' : 'status-waiting'"
+              >
+                <i
+                  class="fa"
+                  :class="game.status === 'Completed' ? 'fa-check-circle' : 'fa-hourglass-half'"
+                  aria-hidden="true"
+                ></i>
+                <span>{{ game.status }}</span>
+              </div>
+
+              <div v-if="currentView === 'games'" class="card-buttons-row">
+                <button
+                  type="button"
+                  class="action-btn btn-queue"
+                  :disabled="isInBacklog(game)"
+                  :title="isInBacklog(game) ? 'Already in backlog' : 'Add to backlog'"
+                  @click.stop="addToBacklog(game)"
+                >
+                  <i
+                    class="fa"
+                    :class="isInBacklog(game) ? 'fa-check' : 'fa-bookmark'"
+                    aria-hidden="true"
+                  ></i>
+                  <span>{{ isInBacklog(game) ? 'In Queue' : '+ Backlog' }}</span>
+                </button>
+
+                <button
+                  type="button"
+                  class="action-btn btn-fav"
+                  :disabled="isInFavorites(game)"
+                  :title="isInFavorites(game) ? 'Already in favorites' : 'Add to favorites'"
+                  @click.stop="addToFavorites(game)"
+                >
+                  <i
+                    class="fa"
+                    :class="isInFavorites(game) ? 'fa-heart' : 'fa-heart-o'"
+                    aria-hidden="true"
+                  ></i>
+                  <span>{{ isInFavorites(game) ? 'Starred' : 'Star' }}</span>
+                </button>
+              </div>
+
+              <div v-else-if="currentView === 'backlog'" class="card-buttons-row">
+                <button
+                  type="button"
+                  class="action-btn btn-toggle-state"
+                  :title="game.status === 'Completed' ? 'Reopen game' : 'Mark completed'"
+                  @click.stop="toggleGameStatus(game)"
+                >
+                  <i
+                    class="fa"
+                    :class="game.status === 'Completed' ? 'fa-undo' : 'fa-check'"
+                    aria-hidden="true"
+                  ></i>
+                  <span>{{ game.status === 'Completed' ? 'Reopen' : 'Done' }}</span>
+                </button>
+
+                <button
+                  type="button"
+                  class="action-btn btn-delete"
+                  title="Remove from backlog"
+                  @click.stop="removeFromBacklog(game)"
+                >
+                  <i class="fa fa-trash" aria-hidden="true"></i>
+                  <span>Remove</span>
+                </button>
+              </div>
+
+              <button
+                v-else
+                type="button"
+                class="action-btn btn-delete full-btn"
+                title="Remove from favorites"
+                @click.stop="removeFromFavorites(game)"
+              >
+                <i class="fa fa-trash" aria-hidden="true"></i>
+                <span>Remove from Favorites</span>
+              </button>
+            </div>
+          </article>
+        </section>
+
+        <section v-else class="empty-state-box">
+          <div class="empty-state-icon">
+            <i :class="emptyStateIcon" aria-hidden="true"></i>
+          </div>
+          <h2>{{ emptyStateTitle }}</h2>
+          <p>{{ emptyStateMessage }}</p>
+
+          <button
+            v-if="searchQuery || selectedGenre !== 'All'"
+            type="button"
+            class="empty-cta-btn"
+            @click="clearSearch()"
+          >
+            Clear Filters & Search
+          </button>
+          <button
+            v-else
+            type="button"
+            class="empty-cta-btn"
+            @click="setView('games')"
+          >
+            Explore All Games
+          </button>
+        </section>
+
+      </main>
+    </div>
+
+    <!-- Game Details Modal Dialog -->
+    <transition name="modal-fade">
+      <div v-if="selectedGame" class="modal-wrapper">
+        <!-- Clickable Dark Backdrop Overlay -->
+        <div class="modal-backdrop" @click="closeGameDetails()" aria-hidden="true"></div>
+
+        <!-- Modal Dialog Box (Independent Sibling - Clicks cannot trigger backdrop) -->
+        <div
+          class="modal-dialog-split"
+          role="dialog"
+          aria-modal="true"
+          :aria-label="selectedGame.title + ' Details'"
+        >
+          <button
+            type="button"
+            class="modal-close-btn"
+            title="Close details (Esc)"
+            @click="closeGameDetails()"
+          >
+            <i class="fa fa-times" aria-hidden="true"></i>
+          </button>
+
+          <!-- Left Column: Game Poster Artwork -->
+          <div class="modal-media-col">
+            <div class="modal-poster-wrap">
+              <img
+                :src="selectedGame.image"
+                :alt="selectedGame.title + ' cover'"
+                class="modal-poster-img"
+              >
+            </div>
+          </div>
+
+          <!-- Right Column: Complete Game Details -->
+          <div class="modal-info-col">
+            <div class="modal-info-header">
+              <div class="modal-meta-row">
+                <span class="modal-tag-genre">{{ selectedGame.genre }}</span>
+                <span class="modal-tag-rating">
+                  <i class="fa fa-star" aria-hidden="true"></i> {{ selectedGame.rating }}
+                </span>
+              </div>
+
+              <div class="modal-title-row">
+                <div class="modal-title-main">
+                  <h2 class="modal-game-title">{{ selectedGame.title }}</h2>
+                  <div v-if="selectedGame.developer" class="modal-dev-credit">
+                    <i class="fa fa-code" aria-hidden="true"></i>
+                    <span>Developer: <strong>{{ selectedGame.developer }}</strong></span>
+                  </div>
+                </div>
+
+                <!-- Backlog Status Badge -->
+                <div
+                  v-if="isInBacklog(selectedGame)"
+                  class="modal-status-badge"
+                  :class="getBacklogStatus(selectedGame) === 'Completed' ? 'badge-done' : 'badge-queued'"
+                >
+                  <i
+                    class="fa"
+                    :class="getBacklogStatus(selectedGame) === 'Completed' ? 'fa-check-circle' : 'fa-hourglass-half'"
+                    aria-hidden="true"
+                  ></i>
+                  <span>{{ getBacklogStatus(selectedGame) }}</span>
+                </div>
+              </div>
+
+              <div class="modal-specs-grid">
+                <div class="modal-spec-chip">
+                  <div class="spec-icon-wrap">
+                    <i class="fa fa-gamepad" aria-hidden="true"></i>
+                  </div>
+                  <div class="spec-info">
+                    <span class="spec-label">Platforms</span>
+                    <span class="spec-val" :title="selectedGame.platform">{{ selectedGame.platform }}</span>
+                  </div>
+                </div>
+
+                <div class="modal-spec-chip">
+                  <div class="spec-icon-wrap">
+                    <i class="fa fa-calendar-o" aria-hidden="true"></i>
+                  </div>
+                  <div class="spec-info">
+                    <span class="spec-label">Release Date</span>
+                    <span class="spec-val">{{ selectedGame.releasedate }}</span>
+                  </div>
+                </div>
+
+                <div class="modal-spec-chip">
+                  <div class="spec-icon-wrap">
+                    <i class="fa fa-star" aria-hidden="true"></i>
+                  </div>
+                  <div class="spec-info">
+                    <span class="spec-label">Critic Rating</span>
+                    <span class="spec-val">{{ selectedGame.rating }} / 5.0</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="modal-section-synopsis">
+              <h3 class="modal-section-heading">
+                <i class="fa fa-align-left" aria-hidden="true"></i>
+                <span>About this Game</span>
+              </h3>
+              <p class="modal-desc-text">
+                {{ selectedGame.description || 'No detailed synopsis available yet for this title.' }}
+              </p>
+            </div>
+
+            <div class="modal-bottom-actions">
+              <div class="modal-collection-buttons">
+                <!-- Backlog Management -->
+                <button
+                  v-if="!isInBacklog(selectedGame)"
+                  type="button"
+                  class="modal-action-btn btn-modal-backlog"
+                  @click="addToBacklog(selectedGame)"
+                >
+                  <i class="fa fa-bookmark" aria-hidden="true"></i>
+                  <span>Add to Backlog</span>
+                </button>
+                <div v-else class="modal-action-duo">
+                  <button
+                    type="button"
+                    class="modal-action-btn btn-modal-toggle"
+                    @click="toggleGameStatus(selectedGame)"
+                  >
+                    <i
+                      class="fa"
+                      :class="getBacklogStatus(selectedGame) === 'Completed' ? 'fa-undo' : 'fa-check'"
+                      aria-hidden="true"
+                    ></i>
+                    <span>{{ getBacklogStatus(selectedGame) === 'Completed' ? 'Reopen Game' : 'Mark Completed' }}</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="modal-action-btn btn-modal-remove"
+                    title="Remove from Backlog"
+                    @click="removeFromBacklog(selectedGame)"
+                  >
+                    <i class="fa fa-trash" aria-hidden="true"></i>
+                    <span>Remove</span>
+                  </button>
+                </div>
+
+                <!-- Favorites Management -->
+                <button
+                  type="button"
+                  class="modal-action-btn btn-modal-fav"
+                  :class="{ active: isInFavorites(selectedGame) }"
+                  @click="isInFavorites(selectedGame) ? removeFromFavorites(selectedGame) : addToFavorites(selectedGame)"
+                >
+                  <i
+                    class="fa"
+                    :class="isInFavorites(selectedGame) ? 'fa-heart' : 'fa-heart-o'"
+                    aria-hidden="true"
+                  ></i>
+                  <span>{{ isInFavorites(selectedGame) ? 'Favorited' : 'Star as Favorite' }}</span>
+                </button>
+
+                <!-- Delete Game from Vault -->
+                <button
+                  type="button"
+                  class="modal-action-btn btn-modal-delete-game"
+                  title="Delete this game permanently from vault"
+                  @click="deleteGame(selectedGame)"
+                >
+                  <i class="fa fa-trash-o" aria-hidden="true"></i>
+                  <span>Delete Game</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- Add Game Modal Dialog -->
+    <transition name="modal-fade">
+      <div v-if="isAddModalOpen" class="modal-wrapper">
+        <!-- Clickable Dark Backdrop -->
+        <div class="modal-backdrop" @click="closeAddGameModal()" aria-hidden="true"></div>
+
+        <!-- Modal Dialog (Split View: Live Preview + Form) -->
+        <div
+          class="modal-dialog-split modal-add-game-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Add New Game"
+        >
+          <button
+            type="button"
+            class="modal-close-btn"
+            title="Close (Esc)"
+            @click="closeAddGameModal()"
+          >
+            <i class="fa fa-times" aria-hidden="true"></i>
+          </button>
+
+          <!-- Left Column: Live Card / Artwork Preview -->
+          <div class="modal-media-col add-preview-col">
+            <div class="preview-badge-header">
+              <i class="fa fa-eye" aria-hidden="true"></i>
+              <span>Live Card Preview</span>
+            </div>
+
+            <div class="add-preview-card">
+              <div class="card-cover-wrap preview-cover-wrap">
+                <!-- If user provided an image -->
+                <img
+                  v-if="newGame.image"
+                  :src="newGame.image"
+                  :alt="(newGame.title || 'New Game') + ' cover preview'"
+                  class="preview-cover-img"
+                  :class="{ 'is-contain': isLogoImage(newGame.image) }"
+                  @error="previewImageFallback"
+                >
+                <!-- If no image provided, show sleek artwork placeholder -->
+                <div v-else class="preview-empty-cover">
+                  <div class="empty-cover-icon">
+                    <i class="fa fa-gamepad" aria-hidden="true"></i>
+                  </div>
+                  <span class="empty-cover-hint">Select a cover preset below or paste an image URL</span>
+                </div>
+
+                <!-- Floating Tags -->
+                <div class="cover-overlay-tags">
+                  <span class="cover-genre-tag">{{ newGame.genre || 'Genre' }}</span>
+                  <span class="cover-rating-tag">
+                    <i class="fa fa-star" aria-hidden="true"></i>
+                    {{ newGame.rating || '5.0' }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="card-info-wrap preview-info-wrap">
+                <h3
+                  class="card-title preview-card-title"
+                  :class="{ 'placeholder-title': !newGame.title }"
+                >
+                  {{ newGame.title || 'Game Title' }}
+                </h3>
+
+                <div class="card-details preview-card-details">
+                  <span class="detail-item">
+                    <i class="fa fa-gamepad" aria-hidden="true"></i>
+                    {{ newGame.platform || 'Platform' }}
+                  </span>
+                  <span class="detail-item">
+                    <i class="fa fa-calendar-o" aria-hidden="true"></i>
+                    {{ newGame.releasedate || 'Release Date' }}
+                  </span>
+                </div>
+
+                <div v-if="newGame.developer" class="preview-dev-badge">
+                  <i class="fa fa-code" aria-hidden="true"></i>
+                  <span>{{ newGame.developer }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: Add Game Form -->
+          <div class="modal-info-col add-form-col">
+            <div class="modal-info-header">
+              <div class="modal-meta-row">
+                <span class="modal-tag-genre"><i class="fa fa-plus-circle" aria-hidden="true"></i> New Title</span>
+              </div>
+
+              <div class="modal-title-row">
+                <div class="modal-title-main">
+                  <h2 class="modal-game-title">Add Game to Vault</h2>
+                  <p class="add-form-subtitle">Add a title to your database catalog and manage it across your collections.</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Form Validation Error Alert -->
+            <div v-if="addFormError" class="form-error-alert" role="alert">
+              <i class="fa fa-exclamation-circle" aria-hidden="true"></i>
+              <span>{{ addFormError }}</span>
+            </div>
+
+            <form @submit.prevent="submitAddGame()" class="add-game-form">
+              <div class="form-grid-2">
+                <!-- Title -->
+                <div class="form-field-group">
+                  <label for="gameTitle" class="form-label">
+                    Game Title <span class="req">*</span>
+                  </label>
+                  <input
+                    id="gameTitle"
+                    ref="gameTitleInput"
+                    type="text"
+                    v-model.trim="newGame.title"
+                    placeholder="e.g. Black Myth: Wukong"
+                    class="form-text-input"
+                    required
+                  >
+                </div>
+
+                <!-- Genre -->
+                <div class="form-field-group">
+                  <label for="gameGenre" class="form-label">
+                    Genre <span class="req">*</span>
+                  </label>
+                  <input
+                    id="gameGenre"
+                    type="text"
+                    v-model.trim="newGame.genre"
+                    list="genreSuggestions"
+                    placeholder="e.g. Action RPG, Indie, Open World"
+                    class="form-text-input"
+                    required
+                  >
+                  <datalist id="genreSuggestions">
+                    <option value="Action RPG"></option>
+                    <option value="RPG"></option>
+                    <option value="Action"></option>
+                    <option value="Indie"></option>
+                    <option value="Open World"></option>
+                    <option value="Adventure"></option>
+                    <option value="Shooter"></option>
+                    <option value="Strategy"></option>
+                    <option value="Simulation"></option>
+                    <option value="Horror"></option>
+                    <option value="Fighting"></option>
+                    <option value="Platformer"></option>
+                  </datalist>
+                </div>
+              </div>
+
+              <div class="form-grid-3">
+                <!-- Platform -->
+                <div class="form-field-group">
+                  <label for="gamePlatform" class="form-label">
+                    Platform <span class="req">*</span>
+                  </label>
+                  <input
+                    id="gamePlatform"
+                    type="text"
+                    v-model.trim="newGame.platform"
+                    list="platformSuggestions"
+                    placeholder="e.g. PC / PS5 / Xbox"
+                    class="form-text-input"
+                    required
+                  >
+                  <datalist id="platformSuggestions">
+                    <option value="PC / PS5 / Xbox"></option>
+                    <option value="PC"></option>
+                    <option value="PlayStation / PC"></option>
+                    <option value="Multiplatform"></option>
+                    <option value="Nintendo Switch"></option>
+                    <option value="PS5"></option>
+                    <option value="Xbox Series X"></option>
+                  </datalist>
+                </div>
+
+                <!-- Rating -->
+                <div class="form-field-group">
+                  <label for="gameRating" class="form-label">
+                    Rating (0 - 5.0) <span class="req">*</span>
+                  </label>
+                  <input
+                    id="gameRating"
+                    type="number"
+                    v-model.number="newGame.rating"
+                    min="0"
+                    max="5"
+                    step="0.1"
+                    placeholder="e.g. 4.8"
+                    class="form-text-input"
+                    required
+                  >
+                </div>
+
+                <!-- Release Date -->
+                <div class="form-field-group">
+                  <label for="gameReleaseDate" class="form-label">
+                    Release Date <span class="req">*</span>
+                  </label>
+                  <input
+                    id="gameReleaseDate"
+                    type="text"
+                    v-model.trim="newGame.releasedate"
+                    placeholder="e.g. August 2024"
+                    class="form-text-input"
+                    required
+                  >
+                </div>
+              </div>
+
+              <!-- Developer -->
+              <div class="form-field-group">
+                <label for="gameDeveloper" class="form-label">
+                  Developer / Studio
+                </label>
+                <input
+                  id="gameDeveloper"
+                  type="text"
+                  v-model.trim="newGame.developer"
+                  placeholder="e.g. Game Science, FromSoftware, Capcom"
+                  class="form-text-input"
+                >
+              </div>
+
+              <!-- Cover Image URL & Presets -->
+              <div class="form-field-group">
+                <label for="gameImage" class="form-label">
+                  Cover Image URL or Project Path
+                </label>
+                <input
+                  id="gameImage"
+                  type="text"
+                  v-model.trim="newGame.image"
+                  placeholder="e.g. https://... or images/bloodline.jpg (Default: images/Logo.png)"
+                  class="form-text-input"
+                >
+                <div class="image-preset-picker">
+                  <span class="preset-label">Quick covers:</span>
+                  <div class="preset-chips-wrap">
+                    <button
+                      v-for="preset in imagePresets"
+                      :key="preset.label"
+                      type="button"
+                      class="preset-chip"
+                      :class="{ active: newGame.image === preset.url }"
+                      @click="selectImagePreset(preset.url)"
+                    >
+                      {{ preset.label }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Description -->
+              <div class="form-field-group">
+                <label for="gameDescription" class="form-label">
+                  Description / Synopsis
+                </label>
+                <textarea
+                  id="gameDescription"
+                  v-model.trim="newGame.description"
+                  rows="3"
+                  placeholder="A brief overview of the storyline, setting, gameplay mechanics, and world..."
+                  class="form-textarea"
+                ></textarea>
+              </div>
+
+              <!-- Action Buttons -->
+              <div class="form-actions-row">
+                <button
+                  type="button"
+                  class="form-btn form-btn-secondary"
+                  @click="closeAddGameModal()"
+                  :disabled="isSubmittingGame"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  class="form-btn form-btn-primary"
+                  :disabled="isSubmittingGame"
+                >
+                  <i
+                    class="fa"
+                    :class="isSubmittingGame ? 'fa-spinner fa-spin' : 'fa-plus-circle'"
+                    aria-hidden="true"
+                  ></i>
+                  <span>{{ isSubmittingGame ? 'Adding Game...' : 'Add Game to Vault' }}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </transition>
+  </div>
+</body>
+</html>
