@@ -1,7 +1,7 @@
 <template>
   <div class="app-layout">
     
-    <aside class="app-sidebar" aria-label="Main Navigation">
+    <aside class="app-sidebar desktop-sidebar" aria-label="Main Navigation">
       <div class="sidebar-header">
         <button
           type="button"
@@ -119,20 +119,193 @@
           &copy; {{ currentYear }} GameVault • Vue 3 + Quasar
         </div>
 
-        <button
-          type="button"
-          class="server-config-btn"
-          title="Configure backend server connection"
-          @click="openServerModal()"
-        >
-          <i class="fa fa-server" aria-hidden="true"></i>
-          <span>API: {{ serverDisplayHost }}</span>
-        </button>
       </div>
     </aside>
 
+    <!-- Mobile Sidebar Overlay -->
+    <transition name="fade">
+      <div
+        v-if="isMobileSidebarOpen"
+        class="mobile-sidebar-overlay"
+        @click="isMobileSidebarOpen = false"
+        aria-hidden="true"
+      ></div>
+    </transition>
+
+    <!-- Mobile Sidebar Drawer -->
+    <transition name="slide-sidebar">
+      <aside
+        v-if="isMobileSidebarOpen"
+        class="app-sidebar mobile-sidebar-drawer"
+        aria-label="Mobile Navigation Drawer"
+      >
+        <div class="sidebar-header">
+          <button
+            type="button"
+            class="brand-badge"
+            @click="setView('games'); isMobileSidebarOpen = false"
+          >
+            <div class="brand-icon">
+              <i class="fa fa-gamepad" aria-hidden="true"></i>
+            </div>
+            <div class="brand-info">
+              <span class="brand-title">GameVault</span>
+              <span class="brand-sub">Gaming Hub</span>
+            </div>
+          </button>
+          <button
+            type="button"
+            class="mobile-sidebar-close-btn"
+            aria-label="Close menu"
+            @click="isMobileSidebarOpen = false"
+          >
+            <i class="fa fa-times" aria-hidden="true"></i>
+          </button>
+        </div>
+
+        <div class="sidebar-body">
+          <div class="nav-group">
+            <div class="group-title">Collections</div>
+            <nav class="nav-menu">
+              <button
+                type="button"
+                class="nav-item"
+                :class="{ active: currentView === 'games' }"
+                @click="setView('games'); isMobileSidebarOpen = false"
+              >
+                <i class="fa fa-th-large nav-icon" aria-hidden="true"></i>
+                <span class="nav-text">Library</span>
+                <span class="nav-pill">{{ numberOfGames }}</span>
+              </button>
+
+              <button
+                type="button"
+                class="nav-item"
+                :class="{ active: currentView === 'backlog' }"
+                @click="setView('backlog'); isMobileSidebarOpen = false"
+              >
+                <i class="fa fa-bookmark nav-icon" aria-hidden="true"></i>
+                <span class="nav-text">Backlog</span>
+                <span class="nav-pill pill-backlog">{{ numberOfBacklog }}</span>
+              </button>
+
+              <button
+                type="button"
+                class="nav-item"
+                :class="{ active: currentView === 'favorites' }"
+                @click="setView('favorites'); isMobileSidebarOpen = false"
+              >
+                <i class="fa fa-heart nav-icon" aria-hidden="true"></i>
+                <span class="nav-text">Favorites</span>
+                <span class="nav-pill pill-favorites">{{ numberOfFavorites }}</span>
+              </button>
+            </nav>
+
+            <div class="sidebar-action-wrap">
+              <button
+                type="button"
+                class="sidebar-add-game-btn"
+                @click="openAddGameModal(); isMobileSidebarOpen = false"
+              >
+                <i class="fa fa-plus-circle" aria-hidden="true"></i>
+                <span>Add New Game</span>
+              </button>
+            </div>
+          </div>
+
+          <div v-if="currentView === 'games'" class="nav-group">
+            <div class="group-title">Browse by Genre</div>
+            <div class="sidebar-genres">
+              <button
+                v-for="genre in genres"
+                :key="genre"
+                type="button"
+                class="sidebar-genre-chip"
+                :class="{ active: selectedGenre === genre }"
+                @click="setGenre(genre); isMobileSidebarOpen = false"
+              >
+                <span>{{ genre }}</span>
+                <i v-if="selectedGenre === genre" class="fa fa-check-circle" aria-hidden="true"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="user-progress-widget">
+            <div class="progress-title">
+              <i class="fa fa-pie-chart" aria-hidden="true"></i>
+              <span>Queue Overview</span>
+            </div>
+            <div class="progress-item">
+              <span>Completed Titles</span>
+              <strong>{{ completedBacklogCount }} / {{ numberOfBacklog }}</strong>
+            </div>
+            <div class="progress-item">
+              <span>Hall of Fame</span>
+              <strong>{{ numberOfFavorites }} games</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="sidebar-footer">
+          <button
+            type="button"
+            class="theme-switch-row"
+            :title="isLightMode ? 'Switch to Dark Theme' : 'Switch to Light Theme'"
+            @click="toggleTheme()"
+          >
+            <div class="theme-switch-label">
+              <i class="fa" :class="isLightMode ? 'fa-moon-o' : 'fa-sun-o'" aria-hidden="true"></i>
+              <span>{{ isLightMode ? 'Dark Theme' : 'Light Theme' }}</span>
+            </div>
+            <div class="theme-switch-indicator" :class="{ 'is-light': isLightMode }"></div>
+          </button>
+
+          <div class="sidebar-copyright">
+            &copy; {{ currentYear }} GameVault • Vue 3 + Quasar
+          </div>
+        </div>
+      </aside>
+    </transition>
+
     <div class="app-main">
       
+      <!-- Mobile Native Top App Header -->
+      <header class="mobile-app-header mobile-only">
+        <button
+          type="button"
+          class="mobile-hamburger-btn"
+          aria-label="Open navigation menu"
+          @click="isMobileSidebarOpen = true"
+        >
+          <i class="fa fa-bars" aria-hidden="true"></i>
+        </button>
+
+        <button type="button" class="mobile-brand-btn" @click="setView('games')">
+          <span class="brand-title">GameVault</span>
+        </button>
+
+        <div class="mobile-header-actions">
+          <button
+            type="button"
+            class="mobile-icon-btn"
+            :title="isLightMode ? 'Switch to Dark' : 'Switch to Light'"
+            @click="toggleTheme()"
+          >
+            <i class="fa" :class="isLightMode ? 'fa-moon-o' : 'fa-sun-o'" aria-hidden="true"></i>
+          </button>
+
+          <button
+            type="button"
+            class="mobile-quick-add-btn"
+            @click="openAddGameModal()"
+            title="Add Game"
+          >
+            <i class="fa fa-plus" aria-hidden="true"></i>
+            <span>Add</span>
+          </button>
+        </div>
+      </header>
+
       <header class="workspace-topbar">
         <div class="topbar-search">
           <i class="fa fa-search search-icon" aria-hidden="true"></i>
@@ -156,7 +329,7 @@
         <div class="topbar-actions">
           <button
             type="button"
-            class="topbar-add-game-btn"
+            class="topbar-add-game-btn desktop-only"
             @click="openAddGameModal()"
             title="Add a new game to library"
           >
@@ -174,6 +347,21 @@
           </div>
         </div>
       </header>
+
+      <!-- Horizontal Genre Pill Scroller (Visible in Library View) -->
+      <div v-if="currentView === 'games'" class="genres-horizontal-bar mobile-only">
+        <button
+          v-for="genre in genres"
+          :key="genre"
+          type="button"
+          class="genre-chip-pill"
+          :class="{ active: selectedGenre === genre }"
+          @click="setGenre(genre)"
+        >
+          <span>{{ genre }}</span>
+          <i v-if="selectedGenre === genre" class="fa fa-check" aria-hidden="true"></i>
+        </button>
+      </div>
 
       <main class="workspace-content">
         
@@ -956,6 +1144,49 @@
         </div>
       </div>
     </transition>
+
+    <!-- Native Mobile Bottom Navigation Bar (Mobile Only) -->
+    <nav class="mobile-bottom-nav mobile-only" aria-label="Mobile Navigation">
+      <button
+        type="button"
+        class="bottom-nav-item"
+        :class="{ active: currentView === 'games' }"
+        @click="setView('games')"
+      >
+        <div class="bottom-nav-icon-wrap">
+          <i class="fa fa-th-large" aria-hidden="true"></i>
+          <span class="bottom-nav-badge" v-if="numberOfGames">{{ numberOfGames }}</span>
+        </div>
+        <span class="bottom-nav-label">Library</span>
+      </button>
+
+      <button
+        type="button"
+        class="bottom-nav-item"
+        :class="{ active: currentView === 'backlog' }"
+        @click="setView('backlog')"
+      >
+        <div class="bottom-nav-icon-wrap">
+          <i class="fa fa-bookmark" aria-hidden="true"></i>
+          <span class="bottom-nav-badge badge-backlog" v-if="numberOfBacklog">{{ numberOfBacklog }}</span>
+        </div>
+        <span class="bottom-nav-label">Backlog</span>
+      </button>
+
+      <button
+        type="button"
+        class="bottom-nav-item"
+        :class="{ active: currentView === 'favorites' }"
+        @click="setView('favorites')"
+      >
+        <div class="bottom-nav-icon-wrap">
+          <i class="fa fa-heart" aria-hidden="true"></i>
+          <span class="bottom-nav-badge badge-fav" v-if="numberOfFavorites">{{ numberOfFavorites }}</span>
+        </div>
+        <span class="bottom-nav-label">Favorites</span>
+      </button>
+
+    </nav>
   </div>
 </template>
 
@@ -986,6 +1217,7 @@ export default {
       isLightMode: false,
       isLoading: false,
       networkError: null,
+      isMobileSidebarOpen: false,
 
       apiBase: getInitialApiBase(),
       isServerModalOpen: false,
@@ -1178,7 +1410,9 @@ export default {
     // Handle Escape key to close modal
     window.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
-        if (this.isServerModalOpen) {
+        if (this.isMobileSidebarOpen) {
+          this.isMobileSidebarOpen = false;
+        } else if (this.isServerModalOpen) {
           this.closeServerModal();
         } else if (this.isAddModalOpen) {
           this.closeAddGameModal();
