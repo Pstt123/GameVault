@@ -1,5 +1,10 @@
 {
   "appId": "com.gamevault.app",
   "appName": "GameVault",
-  "webDir": "dist"
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  }
 }
+

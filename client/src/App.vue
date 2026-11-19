@@ -260,6 +260,19 @@
             <div class="theme-switch-indicator" :class="{ 'is-light': isLightMode }"></div>
           </button>
 
+          <button
+            type="button"
+            class="server-settings-row"
+            title="Configure backend server"
+            @click="openServerModal(); isMobileSidebarOpen = false"
+          >
+            <div class="theme-switch-label">
+              <i class="fa fa-plug" aria-hidden="true"></i>
+              <span class="server-settings-url">{{ apiBase || 'No server set' }}</span>
+            </div>
+            <i class="fa fa-pencil" aria-hidden="true" style="font-size: 12px; color: var(--text-muted);"></i>
+          </button>
+
           <div class="sidebar-copyright">
             &copy; {{ currentYear }} GameVault • Vue 3 + Quasar
           </div>
@@ -1067,7 +1080,7 @@
     <!-- Server Connection Modal Dialog -->
     <transition name="modal-fade">
       <div v-if="isServerModalOpen" class="modal-wrapper">
-        <div class="modal-backdrop" @click="closeServerModal()" aria-hidden="true"></div>
+        <div class="modal-backdrop" @click="!isFirstRun && closeServerModal()" aria-hidden="true"></div>
         <div
           class="modal-server-dialog"
           role="dialog"
@@ -1075,6 +1088,7 @@
           aria-label="Backend Server Settings"
         >
           <button
+            v-if="!isFirstRun"
             type="button"
             class="modal-close-btn"
             title="Close"
@@ -1084,11 +1098,22 @@
           </button>
 
           <h2 style="margin-top: 0; display: flex; align-items: center; gap: 10px; font-size: 1.25rem;">
-            <i class="fa fa-server" style="color: var(--accent-primary)"></i> Backend API Server
+            <i class="fa fa-server" style="color: var(--accent-primary)"></i>
+            {{ isFirstRun ? 'Connect to Your Server' : 'Server Settings' }}
           </h2>
-          <p style="color: var(--text-secondary); font-size: 13px; line-height: 1.5;">
-            Configure the backend API URL. For an Android device or emulator on your Wi-Fi, point to your computer's IP address.
-          </p>
+
+          <!-- First-run friendly guidance on native -->
+          <template v-if="isFirstRun">
+            <div class="server-first-run-banner">
+              <i class="fa fa-info-circle" aria-hidden="true"></i>
+              <span>Enter the IP address of the computer running your GameVault server. It must be on the same Wi-Fi network as this device.</span>
+            </div>
+          </template>
+          <template v-else>
+            <p style="color: var(--text-secondary); font-size: 13px; line-height: 1.5;">
+              Configure the backend API URL. For an Android device on your Wi-Fi, point to your computer's IP address.
+            </p>
+          </template>
 
           <div class="form-field-group">
             <label class="form-label">API Base URL</label>
@@ -1097,6 +1122,7 @@
               v-model.trim="serverUrlInput"
               class="form-text-input"
               placeholder="e.g. http://192.168.1.22:3000/api"
+              inputmode="url"
             >
           </div>
 
@@ -1127,6 +1153,7 @@
 
           <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px;">
             <button
+              v-if="!isFirstRun"
               type="button"
               class="form-btn form-btn-secondary"
               @click="closeServerModal()"
@@ -1136,9 +1163,11 @@
             <button
               type="button"
               class="form-btn form-btn-primary"
+              :style="isFirstRun ? 'width: 100%; justify-content: center;' : ''"
               @click="saveServerUrl()"
             >
-              Save & Reconnect
+              <i class="fa fa-plug" aria-hidden="true"></i>
+              {{ isFirstRun ? 'Connect & Load Library' : 'Save & Reconnect' }}
             </button>
           </div>
         </div>
@@ -1198,12 +1227,13 @@ function getInitialApiBase() {
   if (stored && stored.trim()) {
     return stored.trim();
   }
+  // On native Android/iOS, there is no "localhost" — the user must set their server IP.
+  // Return null so mounted() can detect first-launch and show the setup modal.
   if (Capacitor.isNativePlatform()) {
-    return "http://192.168.1.22:3000/api";
+    return null;
   }
-  return window.location.port === "3000" || window.location.port === "5173"
-    ? "/api"
-    : "http://localhost:3000/api";
+  // Web: use relative path so Express serves both frontend and API from the same origin.
+  return "/api";
 }
 
 export default {
@@ -1222,6 +1252,7 @@ export default {
       apiBase: getInitialApiBase(),
       isServerModalOpen: false,
       serverUrlInput: "",
+      isFirstRun: false,
 
       notice: {
         message: "",
@@ -1422,12 +1453,20 @@ export default {
       }
     });
 
+    // On native platforms (Android/iOS), no server URL is configured yet →
+    // show the first-run setup modal so the user enters their server IP once.
+    if (Capacitor.isNativePlatform() && !this.apiBase) {
+      this.isFirstRun = true;
+      this.openServerModal();
+      return; // Don't attempt to load data until URL is configured
+    }
+
     await this.loadAllData();
   },
 
   methods: {
     openServerModal() {
-      this.serverUrlInput = this.apiBase;
+      this.serverUrlInput = this.apiBase || "http://192.168.1.22:3000/api";
       this.isServerModalOpen = true;
     },
 
@@ -1441,12 +1480,13 @@ export default {
 
     saveServerUrl() {
       if (!this.serverUrlInput || !this.serverUrlInput.trim()) {
-        this.apiBase = getInitialApiBase();
+        this.apiBase = getInitialApiBase() || "/api";
         window.localStorage.removeItem("gamevault_api_url");
       } else {
         this.apiBase = this.serverUrlInput.trim().replace(/\/+$/, "");
         window.localStorage.setItem("gamevault_api_url", this.apiBase);
       }
+      this.isFirstRun = false;
       this.closeServerModal();
       this.showNotice(`API server set to: ${this.apiBase}`, "info");
       this.loadAllData();
